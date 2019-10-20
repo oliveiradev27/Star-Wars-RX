@@ -12,11 +12,11 @@ import rx.schedulers.Schedulers
 
 class MainActivity : AppCompatActivity() {
 
-    var movies = mutableListOf<String>()
-    lateinit var adapter : SimpleTextAdapter
+    private var movies = mutableListOf<String>()
+    private lateinit var textAdapter : SimpleTextAdapter
 
-    lateinit var progressContainer : View
-    lateinit var recyclerMovies : RecyclerView
+    private lateinit var progressContainer : View
+    private lateinit var recyclerMovies : RecyclerView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,34 +24,35 @@ class MainActivity : AppCompatActivity() {
 
         progressContainer = findViewById(R.id.frame_loading)
 
-        adapter = SimpleTextAdapter(movies)
+        textAdapter = SimpleTextAdapter(movies)
         recyclerMovies = findViewById(R.id.recycler_movies)
-        recyclerMovies.layoutManager = LinearLayoutManager(this)
-        recyclerMovies.adapter = adapter
+        recyclerMovies.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = textAdapter
+        }
 
         loadMovieDetails()
     }
 
     private fun loadMovieDetails() {
-        toogleProgressView()
+        toggleProgressView()
         val api = StarWarsService()
         api.loadMoviesFull()?.let {
             it.subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe({ movie ->
                     movies.add("${movie.title} -- ${movie.episodeId}\n\n${movie.characters}\n")
+                }, { e -> e.printStackTrace()
+                        toggleProgressView()
                 }, {
-                    e -> e.printStackTrace()
-                    toogleProgressView()
-                }, {
-                    adapter.notifyDataSetChanged()
-                    toogleProgressView()
+                    textAdapter.notifyDataSetChanged()
+                    toggleProgressView()
                 }
             )
         }
     }
 
-    private fun toogleProgressView() {
+    private fun toggleProgressView() {
         progressContainer.visibility = when (progressContainer.visibility) {
             View.VISIBLE -> View.GONE
             else -> View.VISIBLE

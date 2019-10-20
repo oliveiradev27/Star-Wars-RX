@@ -1,6 +1,7 @@
 package br.espartano.starwarsapirx.service
 
 import android.net.Uri
+import br.espartano.starwarsapirx.model.api.Person
 import br.espartano.starwarsapirx.model.data.Character
 import br.espartano.starwarsapirx.model.data.Movie
 import com.google.gson.GsonBuilder
@@ -12,7 +13,10 @@ import retrofit2.converter.gson.GsonConverterFactory
 import rx.Observable
 
 class StarWarsService {
+
+    private val baseUrl = "http://swapi.co/api/"
     private val service : StarWarsApi
+    private val personCache = mutableMapOf<String, Person>()
 
     init {
         val logging = HttpLoggingInterceptor()
@@ -21,10 +25,12 @@ class StarWarsService {
         val httpClient = OkHttpClient.Builder()
         httpClient.addInterceptor(logging)
 
-         GsonBuilder().setLenient().create()
+         GsonBuilder()
+             .setLenient()
+             .create()
 
         val retrofit = Retrofit.Builder()
-            .baseUrl("http://swapi.co/api/")
+            .baseUrl(baseUrl)
             .addCallAdapterFactory(RxJavaCallAdapterFactory.create())
             .addConverterFactory(GsonConverterFactory.create())
             .client(httpClient.build())
@@ -47,17 +53,24 @@ class StarWarsService {
                     Observable.just(Movie(film.title, film.episodeId, ArrayList())),
                     Observable.from(film.personUrls)
                         .flatMap { personUrl ->
-                            service.loadPerson(Uri.parse(personUrl).lastPathSegment!!)
+                            Observable
+                                .concat(getCache(personUrl),
+                                    service
+                                        .loadPerson(Uri.parse(personUrl).lastPathSegment!!)
+                                        .doOnNext { person -> personCache[personUrl] = person })
+                                .first()
                         }
-                        .map { person ->
-                            Character(person.name, person.gender)
-                        }
+                        .map { person -> Character(person.name, person.gender) }
                         .toList()
-                ) { movie, characters ->
+                ){ movie, characters ->
                     movie.characters.addAll(characters)
                     movie
                 }
             }
     }
+
+    private fun getCache(url : String) : Observable<Person> = Observable.from(personCache.keys)
+            .filter{ key -> key == url }
+            .flatMap { Observable.just(personCache[url]) }
 
 }
